@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Upload, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 
@@ -27,7 +26,7 @@ const Admin = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Check if user has admin access
+  // 2) Check if user has admin access
   const user = JSON.parse(sessionStorage.getItem("user") || "{}");
   useEffect(() => {
     if (!["admin2", "admin3"].includes(user.username)) {
@@ -35,41 +34,37 @@ const Admin = () => {
     }
   }, [user, navigate]);
 
-  const { data: joinedData, isLoading } = useQuery({
+  // 3) Use React Query to fetch data from your new Python function
+  const { data: joinedData, isLoading, error } = useQuery<JoinedData[]>({
     queryKey: ["joined-data"],
     queryFn: async () => {
       console.log("Fetching joined data...");
-      const { data, error } = await supabase
-        .from('upload_details')
-        .select(`
-          contact_id,
-          evaluator,
-          upload_timestamp,
-          contact_conversations (
-            transcript,
-            updated_at
-          )
-        `);
-      
-      if (error) {
-        console.error("Error fetching joined data:", error);
+      // For example, call your Azure Function at /upload-details
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      const response = await fetch(`${baseUrl}/upload-details`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("Error fetching joined data:", errText);
         toast({
           title: "Error",
           description: "Failed to fetch data",
           variant: "destructive",
         });
-        throw error;
+        throw new Error(`Request failed: ${response.status} - ${errText}`);
       }
+      const rawData = await response.json();
+      console.log("Raw joined data:", rawData);
 
-      console.log("Raw joined data:", data);
-      
-      // Transform the data to flatten the structure
-      const transformedData: JoinedData[] = data.map(item => ({
+      // 4) Optionally transform if needed
+      const transformedData: JoinedData[] = rawData.map((item: any) => ({
         contact_id: item.contact_id,
         evaluator: item.evaluator,
         upload_timestamp: item.upload_timestamp,
-        transcript: item.contact_conversations?.[0]?.transcript || null,
-        updated_at: item.contact_conversations?.[0]?.updated_at || null,
+        transcript: item.transcript || null,
+        updated_at: item.updated_at || null,
       }));
 
       console.log("Transformed data:", transformedData);
@@ -77,6 +72,7 @@ const Admin = () => {
     },
   });
 
+  // 5) Navigate to contact details
   const handleRowClick = (contactId: string) => {
     console.log("Navigating to contact details:", contactId);
     navigate(`/contact/${contactId}`);
@@ -86,6 +82,14 @@ const Admin = () => {
     return (
       <div className="container mx-auto p-6">
         <h1 className="text-2xl font-bold mb-6">Loading...</h1>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-6">
+        <h1 className="text-2xl font-bold mb-6 text-red-500">Error loading data</h1>
       </div>
     );
   }
@@ -107,11 +111,11 @@ const Admin = () => {
           </TableHeader>
           <TableBody>
             {joinedData?.map((row) => (
-              <TableRow 
+              <TableRow
                 key={row.contact_id}
                 className="cursor-pointer hover:bg-gray-50"
               >
-                <TableCell 
+                <TableCell
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
                   onClick={() => handleRowClick(row.contact_id)}
                 >
@@ -123,7 +127,7 @@ const Admin = () => {
                   {format(new Date(row.upload_timestamp), "PPp")}
                 </TableCell>
                 <TableCell>
-                  {row.updated_at 
+                  {row.updated_at
                     ? format(new Date(row.updated_at), "PPp")
                     : "Not updated"}
                 </TableCell>

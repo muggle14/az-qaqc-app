@@ -3,8 +3,10 @@ import { AssessmentCard } from "./AssessmentCard";
 import { AlertCircle, Shield, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { useLocation } from "react-router-dom";
+
+// 1) Remove supabase import
+// import { supabase } from "@/integrations/supabase/client";
 
 interface LocationState {
   contactData: {
@@ -23,21 +25,31 @@ export const QualityAssessorSection = () => {
   const [complaintsReasoning, setComplaintsReasoning] = useState("");
   const [vulnerabilityReasoning, setVulnerabilityReasoning] = useState("");
 
+  // 2) Use a standard fetch call to your Python Azure Function endpoint
   const handleSave = async () => {
     try {
       console.log("Saving quality assessor feedback...");
-      const { error } = await supabase
-        .from("quality_assessor_feedback")
-        .upsert({
+
+      // Replace with your actual function app base URL in .env:
+      // e.g. VITE_API_BASE_URL="https://my-pg-py-functions.azurewebsites.net/api"
+      const baseUrl = import.meta.env.VITE_API_BASE_URL; 
+      const response = await fetch(`${baseUrl}/qa-feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           contact_id: state.contactData.contact_id,
           evaluator: state.contactData.evaluator,
           complaints_flag: complaintsFlag,
           vulnerability_flag: vulnerabilityFlag,
           complaints_reasoning: complaintsReasoning,
           vulnerability_reasoning: vulnerabilityReasoning,
-        });
+        })
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Error saving QA feedback: ${response.status} - ${errText}`);
+      }
 
       toast({
         title: "Success",

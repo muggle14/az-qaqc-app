@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import {
   Table,
   TableBody,
@@ -10,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 import { format } from "date-fns";
 import { ExternalLink, ArrowUpDown, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,74 +24,74 @@ interface JoinedData {
   updated_at: string | null;
 }
 
-type SortField = 'upload_timestamp' | 'updated_at';
-type SortOrder = 'asc' | 'desc';
+type SortField = "upload_timestamp" | "updated_at";
+type SortOrder = "asc" | "desc";
 
 const Index = () => {
   const navigate = useNavigate();
-  const [sortField, setSortField] = useState<SortField>('upload_timestamp');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sortField, setSortField] = useState<SortField>("upload_timestamp");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
-  const { data: joinedData, isLoading } = useQuery({
+  // 1) Use React Query to fetch data from your new Python function
+  const { data: joinedData, isLoading } = useQuery<JoinedData[]>({
     queryKey: ["joined-data"],
     queryFn: async () => {
       console.log("Fetching joined data...");
-      const { data, error } = await supabase
-        .from('upload_details')
-        .select(`
-          contact_id,
-          evaluator,
-          upload_timestamp,
-          contact_conversations (
-            transcript,
-            updated_at
-          )
-        `);
-      
-      if (error) {
-        console.error("Error fetching joined data:", error);
-        throw error;
+      // Retrieve from your Azure Function
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      const response = await fetch(`${baseUrl}/upload-details`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("Error fetching joined data:", errText);
+        throw new Error(`Failed to fetch data: ${response.status} - ${errText}`);
       }
+      const rawData = await response.json();
+      console.log("Raw joined data:", rawData);
 
-      console.log("Raw joined data:", data);
-      
-      const transformedData: JoinedData[] = data.map(item => ({
+      // Transform the data if needed
+      const transformedData: JoinedData[] = rawData.map((item: any) => ({
         contact_id: item.contact_id,
         evaluator: item.evaluator,
         upload_timestamp: item.upload_timestamp,
-        transcript: item.contact_conversations?.[0]?.transcript || null,
-        updated_at: item.contact_conversations?.[0]?.updated_at || null,
+        transcript: item.transcript ?? null,
+        updated_at: item.updated_at ?? null,
       }));
-
       console.log("Transformed data:", transformedData);
       return transformedData;
     },
   });
 
+  // 2) Sorting logic
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
-      setSortOrder('asc');
+      setSortOrder("asc");
     }
   };
 
-  const sortedData = joinedData ? [...joinedData].sort((a, b) => {
-    const aValue = a[sortField];
-    const bValue = b[sortField];
+  // 3) Sort the data client-side
+  const sortedData = joinedData
+    ? [...joinedData].sort((a, b) => {
+        const aValue = a[sortField];
+        const bValue = b[sortField];
+        if (!aValue && !bValue) return 0;
+        if (!aValue) return 1;
+        if (!bValue) return -1;
 
-    if (!aValue && !bValue) return 0;
-    if (!aValue) return 1;
-    if (!bValue) return -1;
+        const comparison = new Date(aValue).getTime() - new Date(bValue).getTime();
+        return sortOrder === "asc" ? comparison : -comparison;
+      })
+    : [];
 
-    const comparison = new Date(aValue).getTime() - new Date(bValue).getTime();
-    return sortOrder === 'asc' ? comparison : -comparison;
-  }) : [];
-
+  // 4) Navigate on row click
   const handleRowClick = (contactData: JoinedData) => {
     console.log("Navigating to contact details with state:", contactData);
-    navigate('/contact/view', { 
+    navigate("/contact/view", { 
       state: { contactData },
       replace: true 
     });
@@ -118,7 +118,7 @@ const Index = () => {
               <TableHead>
                 <Button
                   variant="ghost"
-                  onClick={() => handleSort('upload_timestamp')}
+                  onClick={() => handleSort("upload_timestamp")}
                   className="h-8 flex items-center gap-1"
                 >
                   Upload Date
@@ -128,7 +128,7 @@ const Index = () => {
               <TableHead>
                 <Button
                   variant="ghost"
-                  onClick={() => handleSort('updated_at')}
+                  onClick={() => handleSort("updated_at")}
                   className="h-8 flex items-center gap-1"
                 >
                   Last Updated
@@ -140,11 +140,11 @@ const Index = () => {
           </TableHeader>
           <TableBody>
             {sortedData.map((row) => (
-              <TableRow 
+              <TableRow
                 key={row.contact_id}
                 className="cursor-pointer hover:bg-gray-50"
               >
-                <TableCell 
+                <TableCell
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
                   onClick={() => handleRowClick(row)}
                 >
@@ -153,18 +153,20 @@ const Index = () => {
                 </TableCell>
                 <TableCell>{row.evaluator}</TableCell>
                 <TableCell>
-                  {format(new Date(row.upload_timestamp), "PPp")}
+                  {row.upload_timestamp
+                    ? format(new Date(row.upload_timestamp), "PPp")
+                    : "No upload date"}
                 </TableCell>
                 <TableCell>
-                  {row.updated_at 
+                  {row.updated_at
                     ? format(new Date(row.updated_at), "PPp")
                     : "Not updated"}
                 </TableCell>
                 <TableCell className="max-w-md">
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         className="w-full justify-between px-2 gap-2 h-8 hover:bg-gray-100"
                       >
                         <span className="truncate">

@@ -1,6 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+// 1) Remove or comment out "apiClient" if you no longer use it
+// import { apiClient } from "@/integrations/supabase/client";
+
 import { PhysicalDisabilitySection } from "./PhysicalDisabilitySection";
 import { AIAssessmentSection } from "./AIAssessmentSection";
 import { AlertCircle } from "lucide-react";
@@ -13,28 +15,36 @@ interface AIAssessmentProps {
   onSnippetClick?: (snippetId: string) => void;
 }
 
-export const AIAssessment = ({ 
-  complaints, 
-  vulnerabilities, 
+export const AIAssessment = ({
+  complaints,
+  vulnerabilities,
   contactId,
   onSnippetClick
 }: AIAssessmentProps) => {
   const { data: aiAssessment, isLoading, error } = useQuery({
-    queryKey: ['ai-assessment', contactId],
+    queryKey: ["ai-assessment", contactId],
     queryFn: async () => {
       console.log("Fetching AI assessment for contact:", contactId);
-      
-      const { data, error } = await supabase.functions.invoke('contact-assessment', {
-        body: { contact_id: contactId }
-      })
 
-      if (error) {
-        console.error("Error fetching assessment:", error);
-        throw error;
+      // 2) Use a direct fetch call to your Azure Function
+      const baseUrl = import.meta.env.VITE_API_BASE_URL; 
+      const response = await fetch(`${baseUrl}/contact-assessment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: contactId })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("Error fetching assessment:", errText);
+        throw new Error(`Error fetching assessment: ${response.status} - ${errText}`);
       }
 
+      // 3) The function returns a JSON object with "complaints" and "vulnerability"
+      const data = await response.json();
       console.log("AI assessment data:", data);
-      
+
+      // 4) Map the returned data to the shape your component expects
       return {
         complaints_flag: data.complaints?.complaints_flag || false,
         complaints_reasoning: data.complaints?.complaints_reasoning,
@@ -49,7 +59,8 @@ export const AIAssessment = ({
     retry: 1
   });
 
-  const bothFlagsTrue = aiAssessment?.complaints_flag && aiAssessment?.vulnerability_flag;
+  const bothFlagsTrue =
+    aiAssessment?.complaints_flag && aiAssessment?.vulnerability_flag;
 
   if (isLoading) {
     return (
@@ -68,7 +79,7 @@ export const AIAssessment = ({
           <AlertCircle className="h-8 w-8 text-red-500" />
           <div className="text-red-500 font-medium">Error loading assessment</div>
           <div className="text-sm text-gray-500 max-w-md text-center">
-            {error instanceof Error ? error.message : 'An unexpected error occurred'}
+            {error instanceof Error ? error.message : "An unexpected error occurred"}
           </div>
         </CardContent>
       </Card>
