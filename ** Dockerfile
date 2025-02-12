@@ -1,0 +1,59 @@
+```dockerfile
+# Use the official Node.js 18 image as the base image
+FROM node:18
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy the package.json and package-lock.json (if available)
+COPY app/package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy the rest of your application code
+COPY app/ ./
+
+# Expose port 3000 to the host
+EXPOSE 3000
+
+# Start the Vite development server
+CMD ["npm", "run", "dev"]
+```
+
+**Explanation:**
+
+- **FROM node:18**: Uses Node.js version 18 as the base image.
+- **WORKDIR /app**: Sets the working directory inside the container to `/app`.
+- **COPY app/package*.json ./**: Copies `package.json` and `package-lock.json` to the working directory.
+- **RUN npm install**: Installs dependencies.
+- **COPY app/ ./**: Copies the rest of your application code to the container.
+- **EXPOSE 3000**: Exposes port `3000` at runtime.
+- **CMD ["npm", "run", "dev"]**: Starts the Vite development server using the `dev` script defined in your `package.json`.
+
+---
+
+**2. Map the Ports When Running the Docker Container**
+
+When you run your Docker container, ensure that you're correctly mapping the container's port `3000` to the host machine.
+
+**Command:**
+
+```bash
+docker build -t my-swarm-agent .
+
+docker run -p 3000:3000 my-swarm-agent
+```
+
+**Explanation:**
+
+- **docker build -t my-swarm-agent .**: Builds the Docker image and tags it as `my-swarm-agent`.
+- **docker run -p 3000:3000 my-swarm-agent**: Runs a container from the `my-swarm-agent` image and maps port `3000` of the container to port `3000` on the host.
+
+---
+
+**3. Verify Vite Server Configuration**
+
+Your Vite configuration in `app/vite.config.js` seems correct, as you're setting the server host to `'0.0.0.0'`, which allows external access.
+
+**

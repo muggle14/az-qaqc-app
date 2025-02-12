@@ -1,0 +1,38 @@
+```text
+1. **Ensure the Dockerfile is in the Project Root:**
+   Place the `Dockerfile` in the `my-swarm-agent/` directory.
+
+2. **Build the Docker Image:**
+   Open a terminal in the `my-swarm-agent/` directory and run:
+   ```
+   docker build -t my-swarm-agent:latest .
+   ```
+
+3. **Run the Docker Container:**
+   ```
+   docker run -p 3000:3000 my-swarm-agent:latest
+   ```
+
+4. **Access the Application:**
+   Open your browser and navigate to `http://localhost:3000` to see your Vite app running inside the Docker container.
+```
+
+**Additional Notes:**
+
+- **Symlink Issues:** Docker can have trouble resolving symlinks, especially if they point outside the build context. Ensure that all symlinks within your project are valid and contained within the build context (`my-swarm-agent/`).
+
+- **Permissions:** If you're on a Unix-like system, check the permissions of your files and directories:
+  ```bash
+  chmod -R 755 /path/to/my-swarm-agent
+  ```
+
+- **Docker BuildKit:** The deprecation warning suggests installing BuildKit. Update Docker to the latest version and consider using BuildKit for better performance:
+  ```bash
+  docker buildx build -t my-swarm-agent:latest .
+  ```
+
+**If further clarification is needed, please provide:**
+
+- The exact `docker build` command you're using.
+- The content of your existing `Dockerfile` if different from the one provided.
+- Any specific errors after applying these fixes.
